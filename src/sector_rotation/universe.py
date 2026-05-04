@@ -74,12 +74,20 @@ def fetch_universe(filters: UniverseFilters | None = None, refresh: bool = False
     if not filters.include_etfs:
         df = df[~df["etf"]]
     if filters.exclude_warrants_units:
-        # Heuristic: tickers ending in W (warrant), R (rights), U (unit), or containing dots.
-        bad = df["ticker"].str.match(r".*[\.\$].*|.*[WRU]$") & df["name"].str.contains(
-            r"warrant|right|unit", case=False, regex=True, na=False
+        # Drop preferreds (ticker contains $), warrants/units/rights tickers,
+        # and any security whose name labels it as a non-common-stock instrument.
+        bad_ticker = df["ticker"].astype(str).str.contains(r"[\$]", regex=True, na=False)
+        bad_name = df["name"].astype(str).str.contains(
+            r"\bwarrants?\b|\brights?\b|\bunits?\b|\bpreferred\b|\bdepositary\b|\bnotes?\b|\bsubordinat|\bdebenture",
+            case=False,
+            regex=True,
+            na=False,
         )
-        df = df[~bad]
+        df = df[~(bad_ticker | bad_name)]
+
     df = df.dropna(subset=["ticker"]).drop_duplicates(subset=["ticker"]).reset_index(drop=True)
+    # yfinance uses '-' instead of '.' for class shares (BRK.B -> BRK-B).
+    df["ticker"] = df["ticker"].astype(str).str.replace(".", "-", regex=False)
     return df
 
 

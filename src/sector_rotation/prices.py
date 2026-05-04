@@ -17,6 +17,11 @@ from .config import CACHE_DIR, LOOKBACK_YEARS, PRICE_BATCH_SIZE
 
 log = logging.getLogger(__name__)
 
+# yfinance logs every 404 / delisting at ERROR. For bulk pulls across thousands
+# of tickers (preferreds, OTC, foreign listings) this drowns the real signal.
+# Per-ticker failures are not actionable; we already skip absent columns.
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+
 ADJCLOSE_PARQUET = CACHE_DIR / "adjclose.parquet"
 VOLUME_PARQUET = CACHE_DIR / "volume.parquet"
 
