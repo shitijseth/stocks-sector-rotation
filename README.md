@@ -70,7 +70,29 @@ Outputs land in `reports/`:
 
 - `momentum.csv` / `momentum_3m.png` / `momentum_1y.png` — tag returns at multiple horizons
 - `leadership.csv` / `leadership_heatmap.png` — month-by-month tag leaders over the lookback
-- `clusters.csv` — discovered co-moving clusters with their over-represented tag labels
+- `clusters_1y.csv` / `clusters_3m.csv` — discovered co-moving clusters with their over-represented tag labels
+
+## Interactive dashboard
+
+A Streamlit dashboard makes it easy to explore the results.
+
+```bash
+pip install -e '.[dashboard]'
+sector-rotation dashboard       # opens http://localhost:8501
+```
+
+The dashboard has five pages, all driven by the cached parquet + report CSVs:
+
+- **Overview** — universe stats; top-25 tags by 3m and 1y return.
+- **Themes & momentum** — searchable, sortable table over all ~800 tags. Pick a
+  tag to see the equal-weight cumulative return vs SPY plus member list.
+- **Leadership over time** — heatmap of the most frequent monthly leaders over
+  the lookback; pick a month to see its top 15.
+- **Co-moving clusters** — switch between the 1-year and 3-month windows; filter
+  by min size / min intra-cluster correlation; expand any cluster to see members,
+  their over-represented tag labels, and a cumulative-return chart.
+- **Ticker drill-down** — pick a ticker to see fundamentals snapshot, 5y price,
+  every tag it carries, and every cluster it belongs to.
 
 ## Layout
 

@@ -27,6 +27,7 @@ dependencies = [
 
 [project.optional-dependencies]
 notebook = ["jupyter", "ipykernel"]
+dashboard = ["streamlit>=1.32", "plotly>=5.20"]
 dev = ["ruff", "pytest"]
 
 [project.scripts]

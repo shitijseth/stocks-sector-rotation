@@ -166,5 +166,25 @@ def all() -> None:  # noqa: A003
     ctx.invoke(analyze)
 
 
+@cli.command()
+@click.option("--port", type=int, default=8501, help="Port to bind the Streamlit server.")
+@click.option("--no-browser", is_flag=True, help="Don't auto-open the browser.")
+def dashboard(port: int, no_browser: bool) -> None:
+    """Launch the interactive Streamlit dashboard."""
+    import subprocess
+    from pathlib import Path
+
+    from . import dashboard as dash_mod
+
+    app = Path(dash_mod.__file__).resolve()
+    cmd = [
+        "streamlit", "run", str(app),
+        "--server.port", str(port),
+        "--server.headless", "true" if no_browser else "false",
+    ]
+    log.info("Launching: %s", " ".join(cmd))
+    subprocess.run(cmd, check=False)
+
+
 if __name__ == "__main__":
     cli()
