@@ -81,6 +81,29 @@ pip install -e '.[dashboard]'
 sector-rotation dashboard       # opens http://localhost:8501
 ```
 
+### Password protection
+
+The dashboard is gated by a shared password. Configure it one of three ways:
+
+1. **`.env`** (recommended — already loaded by the project):
+   ```
+   DASHBOARD_PASSWORD=your-secret
+   ```
+2. **`.streamlit/secrets.toml`** (Streamlit's own convention):
+   ```toml
+   dashboard_password = "your-secret"
+   ```
+3. **Disable the gate entirely** (only safe for localhost-only use):
+   ```
+   DASHBOARD_NO_AUTH=1
+   ```
+
+If no password is configured and `DASHBOARD_NO_AUTH` is unset, the dashboard
+refuses to render and shows setup instructions instead — so you can't
+accidentally tunnel an unauthenticated app to the public internet.
+
+### Pages
+
 The dashboard has five pages, all driven by the cached parquet + report CSVs:
 
 - **Overview** — universe stats; top-25 tags by 3m and 1y return.

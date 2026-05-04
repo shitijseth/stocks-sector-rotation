@@ -7,6 +7,8 @@ or via CLI:
 """
 from __future__ import annotations
 
+import hmac
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -23,6 +25,58 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+
+# ----------------------- shared-password auth gate -----------------------
+
+def _expected_password() -> str | None:
+    """Resolve the dashboard password from env or st.secrets."""
+    pw = os.environ.get("DASHBOARD_PASSWORD")
+    if pw:
+        return pw
+    try:
+        return st.secrets.get("dashboard_password")
+    except (FileNotFoundError, AttributeError):
+        return None
+
+
+def require_auth() -> None:
+    """Block rendering until the user enters the correct shared password.
+
+    Skipped if `DASHBOARD_NO_AUTH=1` is set (typical when running on localhost).
+    Aborts with a setup screen if no password is configured at all.
+    """
+    if os.environ.get("DASHBOARD_NO_AUTH") == "1":
+        return
+    if st.session_state.get("_auth_ok"):
+        return
+
+    expected = _expected_password()
+    if not expected:
+        st.title("🔒 Dashboard not configured")
+        st.error(
+            "No password is set. Either:\n\n"
+            "1. Set `DASHBOARD_PASSWORD=<your-password>` in `.env` (recommended), or\n"
+            "2. Add `dashboard_password = \"<your-password>\"` to `.streamlit/secrets.toml`, or\n"
+            "3. Set `DASHBOARD_NO_AUTH=1` to disable the gate (only safe on localhost).\n\n"
+            "Then restart the dashboard."
+        )
+        st.stop()
+
+    st.title("🔒 Sector Rotation Dashboard")
+    st.caption("Enter the shared password to continue.")
+    pw = st.text_input("Password", type="password", key="_auth_pw")
+    if pw:
+        # constant-time compare to avoid trivial timing attacks
+        if hmac.compare_digest(pw, expected):
+            st.session_state["_auth_ok"] = True
+            st.rerun()
+        else:
+            st.error("Wrong password.")
+    st.stop()
+
+
+require_auth()
 
 
 # ----------------------- data loaders (cached) -----------------------
