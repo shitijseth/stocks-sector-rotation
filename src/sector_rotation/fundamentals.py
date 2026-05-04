@@ -100,8 +100,30 @@ def fetch_fundamentals(tickers: list[str], max_workers: int = 8, refresh: bool =
     out = pd.concat([existing, new_df]) if not existing.empty else new_df
     if not out.empty:
         out = out[~out.index.duplicated(keep="last")]
+        out = _sanitize(out)
         out.to_parquet(FUNDAMENTALS_PARQUET)
     return out.loc[[t for t in tickers if t in out.index]] if not out.empty else out
+
+
+# yfinance occasionally returns the string "Infinity" / "-Infinity" / "NaN" in
+# numeric ratio fields when the denominator is ~0 (e.g. P/E with EPS near 0).
+# Parquet/Arrow refuses object columns mixing strings and floats.
+_NUMERIC_FIELDS = {
+    "marketCap", "sharesOutstanding", "trailingPE", "forwardPE", "priceToBook",
+    "priceToSalesTrailing12Months", "enterpriseToEbitda", "trailingEps",
+    "forwardEps", "earningsGrowth", "earningsQuarterlyGrowth", "revenueGrowth",
+    "profitMargins", "operatingMargins", "grossMargins", "returnOnEquity",
+    "dividendYield", "beta",
+}
+
+
+def _sanitize(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    for col in df.columns:
+        if col in _NUMERIC_FIELDS:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+            df[col] = df[col].replace([float("inf"), float("-inf")], pd.NA)
+    return df
 
 
 # ---------- bucket tags ----------
