@@ -35,8 +35,10 @@ env/
 Thumbs.db
 
 # Outputs
-reports/
-*.png
+reports/*
+!reports/sample/
+reports/sample/*
+!reports/sample/*.png
 *.pdf
 *.html
 !docs/**/*.html
