@@ -73,8 +73,10 @@ def fetch_prices(
         and len(have & set(tickers)) > 0
     )
 
-    new_close_frames: list[pd.DataFrame] = []
-    new_vol_frames: list[pd.DataFrame] = []
+    new_cols_close: list[pd.DataFrame] = []  # full window for new tickers (concat axis=1)
+    new_cols_vol: list[pd.DataFrame] = []
+    new_rows_close: list[pd.DataFrame] = []  # extension rows for existing tickers (concat axis=0)
+    new_rows_vol: list[pd.DataFrame] = []
 
     # 1. Fully fetch missing tickers across full window.
     if missing:
@@ -91,10 +93,8 @@ def fetch_prices(
             )
             if df is None or df.empty:
                 continue
-            close = _extract_field(df, batch, "Adj Close")
-            vol = _extract_field(df, batch, "Volume")
-            new_close_frames.append(close)
-            new_vol_frames.append(vol)
+            new_cols_close.append(_extract_field(df, batch, "Adj Close"))
+            new_cols_vol.append(_extract_field(df, batch, "Volume"))
 
     # 2. Extend existing tickers from last_cached -> end.
     if needs_extension:
@@ -113,11 +113,11 @@ def fetch_prices(
             )
             if df is None or df.empty:
                 continue
-            new_close_frames.append(_extract_field(df, batch, "Adj Close"))
-            new_vol_frames.append(_extract_field(df, batch, "Volume"))
+            new_rows_close.append(_extract_field(df, batch, "Adj Close"))
+            new_rows_vol.append(_extract_field(df, batch, "Volume"))
 
-    close_df = _merge(cached_close, new_close_frames)
-    vol_df = _merge(cached_vol, new_vol_frames)
+    close_df = _merge(cached_close, new_cols_close, new_rows_close)
+    vol_df = _merge(cached_vol, new_cols_vol, new_rows_vol)
 
     if close_df is not None:
         _save(close_df, ADJCLOSE_PARQUET)
@@ -150,21 +150,47 @@ def _extract_field(df: pd.DataFrame, batch: list[str], field: str) -> pd.DataFra
     return sub
 
 
-def _merge(cached: pd.DataFrame | None, new_frames: list[pd.DataFrame]) -> pd.DataFrame | None:
-    if not new_frames and cached is None:
+def _merge(
+    cached: pd.DataFrame | None,
+    new_col_frames: list[pd.DataFrame],
+    new_row_frames: list[pd.DataFrame],
+) -> pd.DataFrame | None:
+    """Combine cached prices with newly-fetched data.
+
+    `new_col_frames` add new ticker columns over the full window — concat axis=1.
+    `new_row_frames` add new dates to existing ticker columns — concat axis=0.
+    """
+    new_col_frames = [f for f in new_col_frames if f is not None and not f.empty]
+    new_row_frames = [f for f in new_row_frames if f is not None and not f.empty]
+    if cached is None and not new_col_frames and not new_row_frames:
         return None
-    parts = []
-    if cached is not None:
-        parts.append(cached)
-    parts.extend([f for f in new_frames if f is not None and not f.empty])
-    if not parts:
-        return cached
-    out = pd.concat(parts, axis=1)
-    # Collapse duplicate columns (later frames overwrite earlier on overlap).
-    out = out.loc[:, ~out.columns.duplicated(keep="last")]
-    out = out.sort_index()
-    out = out[~out.index.duplicated(keep="last")]
-    return out
+
+    # Step 1: widen by adding new ticker columns.
+    if new_col_frames:
+        new_cols = pd.concat(new_col_frames, axis=1)
+        new_cols = new_cols.loc[:, ~new_cols.columns.duplicated(keep="last")]
+        if cached is None:
+            wide = new_cols
+        else:
+            # Avoid clobbering cached columns: only add columns that aren't already present.
+            extra = [c for c in new_cols.columns if c not in cached.columns]
+            wide = pd.concat([cached, new_cols[extra]], axis=1) if extra else cached
+    else:
+        wide = cached
+
+    # Step 2: append new dates onto existing ticker columns.
+    if new_row_frames and wide is not None:
+        ext = pd.concat(new_row_frames, axis=1)
+        ext = ext.loc[:, ~ext.columns.duplicated(keep="last")]
+        # Reindex extension columns to wide schema (NaN for cols not in extension).
+        ext = ext.reindex(columns=wide.columns)
+        wide = pd.concat([wide, ext], axis=0)
+
+    if wide is None:
+        return None
+    wide = wide.sort_index()
+    wide = wide[~wide.index.duplicated(keep="last")]
+    return wide
 
 
 def liquid_universe(
