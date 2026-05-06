@@ -9,7 +9,12 @@ from __future__ import annotations
 
 import hmac
 import os
+import socket
 from pathlib import Path
+
+# Same default-timeout guard as cli.py — protects any lazy yfinance fetches
+# the dashboard might trigger.
+socket.setdefaulttimeout(20)
 
 import pandas as pd
 import plotly.express as px

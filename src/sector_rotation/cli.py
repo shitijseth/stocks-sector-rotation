@@ -2,8 +2,15 @@
 from __future__ import annotations
 
 import logging
+import socket
 import sys
 from pathlib import Path
+
+# Process-wide network timeout. yfinance occasionally connects to endpoints
+# that hang forever; a default socket timeout means any blocking read/connect
+# raises socket.timeout (caught by yfinance/requests as a normal failure)
+# instead of pinning a worker thread indefinitely.
+socket.setdefaulttimeout(20)
 
 import click
 import pandas as pd

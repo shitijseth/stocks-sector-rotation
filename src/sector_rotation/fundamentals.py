@@ -91,7 +91,8 @@ def fetch_fundamentals(tickers: list[str], max_workers: int = 8, refresh: bool =
         # ~3s of headroom; once the budget is exceeded any still-pending workers
         # are abandoned and the parquet is written with what we have.
         budget_s = max(120, int(3 * len(missing) / max(1, max_workers)))
-        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        ex = ThreadPoolExecutor(max_workers=max_workers)
+        try:
             futs = {ex.submit(_fetch_one, t): t for t in missing}
             try:
                 for fut in tqdm(
@@ -109,6 +110,10 @@ def fetch_fundamentals(tickers: list[str], max_workers: int = 8, refresh: bool =
                     "Fundamentals fetch hit %ds budget; abandoning %d stuck workers (e.g. %s)",
                     budget_s, len(stuck), ", ".join(stuck[:5]),
                 )
+        finally:
+            # Don't block on stuck workers; cancel pending and bail. Stuck threads
+            # will be killed by the socket-level timeout enforced in cli.py.
+            ex.shutdown(wait=False, cancel_futures=True)
 
     new_df = pd.DataFrame(rows).set_index("ticker") if rows else pd.DataFrame()
     out = pd.concat([existing, new_df]) if not existing.empty else new_df
